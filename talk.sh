@@ -1,4 +1,6 @@
 #!/bin/bash
+# Talk with UEFI running in QEMU through named pipes
+# Author: Artem Nefedov
 
 usage()
 {
