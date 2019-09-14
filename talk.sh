@@ -5,6 +5,10 @@
 usage()
 {
 	echo >&2 "
+	Execute arbitrary command via named pipes 'serial.in' / 'serial.out'.
+	QEMU must be running with '-serial pipe:serial' option.
+	Exit code is 0 if command succeeds, or 1 otherwise.
+
 	Usage:
 
 	${0##*/} [options] COMMAND LIST
@@ -14,9 +18,10 @@ usage()
 
 	Available options:
 
-	-e    - send 'Escape' to skip startup.nsh (requres '-w')
+	-e    - send 'Escape' to skip startup.nsh (requires '-w')
 	-h    - show this help and exit
-	-i    - ignore the value of %LastError%
+	-i    - ignore the value of %LastError% (always exit with 0)
+	-p    - print output returned by the command without color codes
 	-r    - send 'reset' command
 	-s    - send 'reset -s' (shutdown) command
 	-t ## - run with timeout
@@ -29,11 +34,11 @@ trap 'echo >&2 "$0: Error at $LINENO: $BASH_COMMAND"' ERR
 set -E
 set -e
 
-unset ignore_error do_reset timeout wait_boot
+unset ignore_error do_print do_reset timeout wait_boot
 boot_keys=$'\r\n'
 opts=()
 
-while getopts ehirst:w opt; do
+while getopts ehiprst:w opt; do
 	opts+=( -"$opt" ${OPTARG+"$OPTARG"} )
 	case "$opt" in
 		e)
@@ -44,6 +49,9 @@ while getopts ehirst:w opt; do
 			;;
 		i)
 			ignore_error=1
+			;;
+		p)
+			do_print=1
 			;;
 		r)
 			do_reset='reset'
@@ -105,9 +113,29 @@ else
 	echo -n "$cmdline" > serial.in
 fi
 
+print_out()
+{
+	# remove color codes and other stuff
+	print_str=$(printf %s "${print_str//$'\r'/}" | \
+		sed -r 's/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGKH]//g')
+
+	# if only 1 command is called, remove command itself
+	# ('*' is to avoid race condition with other serial output)
+	print_str=${print_str#*"$1"$'\n'}
+
+	if [ $# -gt 1 ]; then
+		# otherwise, prefix 1st command with prompt string
+		# (because other commands also have them)
+		print_str="Shell> $1"$'\n'"$print_str"
+	fi
+
+	printf %s "${print_str%Shell> *}"
+}
+
 size=${#expect}
 out=''
-final_out=''
+exit_code=''
+print_str=''
 
 while :; do
 	test -e serial.out
@@ -118,8 +146,12 @@ while :; do
 			out=${out:1}
 		fi
 
-		if [ -z "$first_match" ]; then
-			final_out+=$out
+		if [ -z "$wait_boot" ]; then
+			if [ -z "$first_match" ]; then
+				exit_code+=$c
+			elif [ -n "$do_print" ]; then
+				print_str+=$c
+			fi
 		fi
 
 		if [ "$out" = "$expect" ]; then
@@ -128,8 +160,12 @@ while :; do
 				expect=$'\r'
 				size=1
 				out=''
+
+				if [ -n "$do_print" ]; then
+					print_out "$@"
+				fi
 			else
-				final_out=${final_out%"$expect"}
+				exit_code=${exit_code%"$expect"}
 				break 2
 			fi
 		fi
@@ -140,7 +176,7 @@ if [ -n "$do_reset" ]; then
 	echo -n "$do_reset"$'\r\n' > serial.in
 elif [ -n "$wait_boot" ]; then
 	echo -n "$boot_keys" > serial.in
-elif [ -z "$ignore_error" ] && [ "$final_out" != 0x0 ]; then
+elif [ -z "$ignore_error" ] && [ "$exit_code" != 0x0 ]; then
 	exit 1
 fi
 
