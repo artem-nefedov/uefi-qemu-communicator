@@ -129,7 +129,7 @@ while :; do
 				size=1
 				out=''
 			else
-				final_out=${final_out%$'\r'}
+				final_out=${final_out%"$expect"}
 				break 2
 			fi
 		fi
