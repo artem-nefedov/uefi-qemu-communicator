@@ -20,3 +20,6 @@ tail -f out.log
 ```
 
 Code written in pure BASH with no subprocesses spawned.
+
+Confirmed to work with latest OVMF image.
+Can't guarantee workability for different UEFI shell versions.
