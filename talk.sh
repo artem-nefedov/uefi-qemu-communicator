@@ -18,6 +18,7 @@ usage()
 
 	Available options:
 
+	-c    - print exit code (value of %LastError%)
 	-e    - send 'Escape' to skip startup.nsh (requires '-w')
 	-h    - show this help and exit
 	-i    - ignore the value of %LastError% (always exit with 0)
@@ -34,13 +35,16 @@ trap 'echo >&2 "$0: Error at $LINENO: $BASH_COMMAND"' ERR
 set -E
 set -e
 
-unset ignore_error do_print do_reset timeout wait_boot
+unset print_exit_code ignore_error do_print do_reset timeout wait_boot
 boot_keys=$'\r\n'
 opts=()
 
-while getopts ehiprst:w opt; do
+while getopts cehiprst:w opt; do
 	opts+=( -"$opt" ${OPTARG+"$OPTARG"} )
 	case "$opt" in
+		c)
+			print_exit_code=1
+			;;
 		e)
 			boot_keys=$'\e'
 			;;
@@ -172,11 +176,17 @@ while :; do
 	done < serial.out
 done
 
+if [ -n "$print_exit_code" ] && [ -n "$exit_code" ]; then
+	echo "$exit_code"
+fi
+
+ok_exit_code='^0x0+$'
+
 if [ -n "$do_reset" ]; then
 	echo -n "$do_reset"$'\r\n' > serial.in
 elif [ -n "$wait_boot" ]; then
 	echo -n "$boot_keys" > serial.in
-elif [ -z "$ignore_error" ] && [ "$exit_code" != 0x0 ]; then
+elif [ -z "$ignore_error" ] && [[ ! "$exit_code" =~ $ok_exit_code ]]; then
 	exit 1
 fi
 
