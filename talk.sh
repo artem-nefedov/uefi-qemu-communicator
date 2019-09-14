@@ -64,7 +64,7 @@ while getopts cehiprst:w opt; do
 			do_reset='reset -s'
 			;;
 		t)
-			opts=( "${opts[@]:2}" )
+			opts=( "${opts[@]:0:$(( ${#opts[@]} - 2 ))}" )
 			timeout=$OPTARG
 			;;
 		w)
