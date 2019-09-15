@@ -27,6 +27,10 @@ usage()
 	-s    - send 'reset -s' (shutdown) command
 	-t ## - run with timeout
 	-w    - wait for boot and skip 5-second prompt
+
+	Environment variables:
+
+	TIMEOUT_MULTIPLIER - if specified, all timeout times are multiplied.
 	"
 	exit 1
 }
@@ -79,6 +83,9 @@ done
 shift $(( OPTIND - 1 ))
 
 if [ -n "$timeout" ]; then
+	if [ -n "$TIMEOUT_MULTIPLIER" ]; then
+		timeout=$(( timeout * TIMEOUT_MULTIPLIER ))
+	fi
 	# --foreground is fine because we spawn no child processes
 	timeout --foreground -s 9 "$timeout" "$0" "${opts[@]}" "$@"
 	exit 0
@@ -184,6 +191,12 @@ ok_exit_code='^0x0+$'
 
 if [ -n "$do_reset" ]; then
 	echo -n "$do_reset"$'\r\n' > serial.in
+	if [ "$do_reset" = 'reset -s' ]; then
+		# confirm that there's no output anymore
+		while IFS='' read -r -n 1 -d '' -t 0.2 c; do
+			:
+		done < serial.out
+	fi
 elif [ -n "$wait_boot" ]; then
 	echo -n "$boot_keys" > serial.in
 elif [ -z "$ignore_error" ] && [[ ! "$exit_code" =~ $ok_exit_code ]]; then
