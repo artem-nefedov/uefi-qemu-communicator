@@ -30,14 +30,23 @@ usage()
 
 	Environment variables:
 
-	TIMEOUT_MULTIPLIER - if specified, all timeout times are multiplied.
+	TIMEOUT_MULTIPLIER - if specified, all timeout times are multiplied
+	TIMEOUT_PIDFILE    - if specified, child PID is saved to a file
 	"
 	exit 1
 }
 
-trap 'echo >&2 "$0: Error at $LINENO: $BASH_COMMAND"' ERR
+cleanup()
+{
+	if [ -z "$timeout" ] && [ -n "$TIMEOUT_PIDFILE" ]; then
+		rm -f "$TIMEOUT_PIDFILE"
+	fi
+	exit "$1"
+}
+
+trap 'cleanup 1;' INT HUP TERM
+trap 'echo >&2 "$0: Error at $LINENO: $BASH_COMMAND"; cleanup 1;' ERR
 set -E
-set -e
 
 unset print_exit_code ignore_error do_print do_reset timeout wait_boot
 boot_keys=$'\r\n'
@@ -89,6 +98,8 @@ if [ -n "$timeout" ]; then
 	# --foreground is fine because we spawn no child processes
 	timeout --foreground -s 9 "$timeout" "$0" "${opts[@]}" "$@"
 	exit 0
+elif [ -n "$TIMEOUT_PIDFILE" ]; then
+	echo $$ > "$TIMEOUT_PIDFILE"
 fi
 
 while [ ! -e serial.out ]; do
@@ -188,6 +199,7 @@ if [ -n "$print_exit_code" ] && [ -n "$exit_code" ]; then
 fi
 
 ok_exit_code='^0x0+$'
+ret=0
 
 if [ -n "$do_reset" ]; then
 	echo -n "$do_reset"$'\r\n' > serial.in
@@ -200,8 +212,8 @@ if [ -n "$do_reset" ]; then
 elif [ -n "$wait_boot" ]; then
 	echo -n "$boot_keys" > serial.in
 elif [ -z "$ignore_error" ] && [[ ! "$exit_code" =~ $ok_exit_code ]]; then
-	exit 1
+	ret=1
 fi
 
-exit 0
+cleanup $ret
 
