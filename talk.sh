@@ -105,10 +105,6 @@ elif [ -n "$TIMEOUT_PIDFILE" ]; then
 	echo $$ > "$TIMEOUT_PIDFILE"
 fi
 
-while [ ! -e serial.out ]; do
-	sleep 0.1
-done
-
 unset first_match
 
 if [ -n "$wait_boot" ]; then
@@ -141,6 +137,10 @@ else
 	cmdline+=$'echo "Last"Error=%lasterror%\r\n'
 	echo -n "$cmdline" > serial.in
 fi
+
+while [ ! -e serial.out ]; do
+	sleep 0.1
+done
 
 print_out()
 {
