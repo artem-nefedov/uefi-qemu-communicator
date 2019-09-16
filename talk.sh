@@ -32,6 +32,7 @@ usage()
 
 	TIMEOUT_MULTIPLIER - if specified, all timeout times are multiplied
 	TIMEOUT_PIDFILE    - if specified, child PID is saved to a file
+	TALK_VERBOSE       - print each executed command (expect with '-c'/'-p')
 	"
 	exit 1
 }
@@ -56,6 +57,7 @@ while getopts cehiprst:w opt; do
 	opts+=( -"$opt" ${OPTARG+"$OPTARG"} )
 	case "$opt" in
 		c)
+			unset TALK_VERBOSE
 			print_exit_code=1
 			;;
 		e)
@@ -68,6 +70,7 @@ while getopts cehiprst:w opt; do
 			ignore_error=1
 			;;
 		p)
+			unset TALK_VERBOSE
 			do_print=1
 			;;
 		r)
@@ -123,7 +126,10 @@ else
 	first_match=1
 
 	cmdline=''
-	for cmd in "$@" 'echo "Last"Error=%lasterror%'; do
+	for cmd in "$@"; do
+		if [ -n "$TALK_VERBOSE" ]; then
+			echo $'\e[0m\n  \e[1;34mUEFI Shell:\e[0m '"$cmd"
+		fi
 		cmdline+="$cmd"$'\r\n'
 	done
 
@@ -132,6 +138,7 @@ else
 		:
 	done < serial.out
 
+	cmdline+=$'echo "Last"Error=%lasterror%\r\n'
 	echo -n "$cmdline" > serial.in
 fi
 
