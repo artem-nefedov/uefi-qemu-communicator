@@ -30,6 +30,7 @@ usage()
 
 	Environment variables:
 
+	QEMU_PIPE          - pipe file name (without .in/.out, default: serial)
 	TIMEOUT_MULTIPLIER - if specified, all timeout times are multiplied
 	TIMEOUT_PIDFILE    - if specified, child PID is saved to a file
 	TALK_VERBOSE       - print each executed command (expect with '-c'/'-p')
@@ -49,6 +50,7 @@ trap 'cleanup 1;' INT HUP TERM
 trap 'echo >&2 "$0: Error at $LINENO: $BASH_COMMAND"; cleanup 1;' ERR
 set -E
 
+QEMU_PIPE=${QEMU_PIPE:-serial}
 unset print_exit_code ignore_error do_print do_reset timeout wait_boot
 boot_keys=$'\r\n'
 opts=()
@@ -132,13 +134,13 @@ else
 	# clear pipe
 	while IFS='' read -r -n 1 -d '' -t 0.2 c; do
 		:
-	done < serial.out
+	done < "$QEMU_PIPE".out
 
 	cmdline+=$'echo "Last"Error=%lasterror%\r\n'
-	echo -n "$cmdline" > serial.in
+	echo -n "$cmdline" > "$QEMU_PIPE".in
 fi
 
-while [ ! -e serial.out ]; do
+while [ ! -e "$QEMU_PIPE".out ]; do
 	sleep 0.1
 done
 
@@ -167,7 +169,7 @@ exit_code=''
 print_str=''
 
 while :; do
-	test -e serial.out
+	test -e "$QEMU_PIPE".out
 	while IFS='' read -r -n 1 -d '' c; do
 		out+=$c
 
@@ -198,7 +200,7 @@ while :; do
 				break 2
 			fi
 		fi
-	done < serial.out
+	done < "$QEMU_PIPE".out
 done
 
 if [ -n "$print_exit_code" ] && [ -n "$exit_code" ]; then
@@ -209,15 +211,15 @@ ok_exit_code='^0x0+$'
 ret=0
 
 if [ -n "$do_reset" ]; then
-	echo -n "$do_reset"$'\r\n' > serial.in
+	echo -n "$do_reset"$'\r\n' > "$QEMU_PIPE".in
 	if [ "$do_reset" = 'reset -s' ]; then
 		# confirm that there's no output anymore
 		while IFS='' read -r -n 1 -d '' -t 0.2 c; do
 			:
-		done < serial.out
+		done < "$QEMU_PIPE".out
 	fi
 elif [ -n "$wait_boot" ]; then
-	echo -n "$boot_keys" > serial.in
+	echo -n "$boot_keys" > "$QEMU_PIPE".in
 elif [ -z "$ignore_error" ] && [[ ! "$exit_code" =~ $ok_exit_code ]]; then
 	ret=1
 fi
